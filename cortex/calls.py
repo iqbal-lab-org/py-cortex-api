@@ -4,10 +4,8 @@ import shutil
 import sys
 
 import pyfastaq
+
 from . import utils
-
-
-class Error(Exception): pass
 
 
 def _replace_sample_name_in_vcf(infile, outfile, sample_name):
@@ -18,18 +16,18 @@ def _replace_sample_name_in_vcf(infile, outfile, sample_name):
             if line.startswith('#CHROM'):
                 fields = line.rstrip().split('\t')
                 if len(fields) < 10:
-                    raise Error('Not enough columns in header line of VCF: ' + line)
+                    raise Exception('Not enough columns in header line of VCF: ' + line)
                 elif len(fields) == 10:
                     fields[9] = sample_name
                     print(*fields, sep='\t', file=f_out)
                     changed_name = True
                 else:
-                    raise Error('More than one sample in VCF, from header line: ' + line)
+                    raise Exception('More than one sample in VCF, from header line: ' + line)
             else:
                 print(line, end='', file=f_out)
 
     if not changed_name:
-        raise Error('No #CHROM line found in VCF file ' + infile)
+        raise Exception('No #CHROM line found in VCF file ' + infile)
 
 
 def _find_binaries(cortex_root=None, stampy_script=None, vcftools_dir=None, mccortex=None):
@@ -38,25 +36,25 @@ def _find_binaries(cortex_root=None, stampy_script=None, vcftools_dir=None, mcco
     cortex_root = os.path.abspath(cortex_root)
 
     if not os.path.isdir(cortex_root):
-        raise Error('Cortex directory ' + cortex_root + ' not found. Cannot continue')
+        raise Exception('Cortex directory ' + cortex_root + ' not found. Cannot continue')
 
     cortex_run_calls = os.path.join(cortex_root, 'scripts', 'calling', 'run_calls.pl')
     if not os.path.exists(cortex_run_calls):
-        raise Error('Cortex run_call.pl script ' + cortex_run_calls + ' not found. Cannot continue')
+        raise Exception('Cortex run_call.pl script ' + cortex_run_calls + ' not found. Cannot continue')
 
     if stampy_script is None:
         stampy_script = os.environ.get('CLOCKWORK_STAMPY_SCRIPT', '/bioinf-tools/stampy-1.0.32/stampy.py')
     stampy_script = os.path.abspath(stampy_script)
 
     if not os.path.exists(stampy_script):
-        raise Error('Stampy script ' + stampy_script + ' not found. Cannot contine')
+        raise Exception('Stampy script ' + stampy_script + ' not found. Cannot contine')
 
     if vcftools_dir is None:
         vcftools_dir = os.environ.get('CLOCKWORK_VCFTOOLS_DIR', '/bioinf-tools/vcftools-0.1.15/')
     vcftools_dir = os.path.abspath(vcftools_dir)
 
     if not os.path.isdir(vcftools_dir):
-        raise Error('vcftools directory ' + vcftools_dir + ' not found. Cannot continue')
+        raise Exception('vcftools directory ' + vcftools_dir + ' not found. Cannot continue')
 
     if mccortex is None:
         mccortex = os.environ.get('CLOCKWORK_MCCORTEX', '/bioinf-tools/mccortex31')
@@ -72,7 +70,7 @@ def make_run_calls_index_files(ref_fasta, outprefix, cortex_root=None, stampy_sc
                                                                                           vcftools_dir=vcftools_dir)
     cortex_var = os.path.join(cortex_root, 'bin', 'cortex_var_31_c1')
     if not os.path.exists(cortex_var):
-        raise Error('Cortex script not found: ' + cortex_var)
+        raise Exception('Cortex script not found: ' + cortex_var)
 
     fofn = outprefix + '.fofn'
     with open(fofn, 'w') as f:
@@ -104,8 +102,9 @@ def make_run_calls_index_files(ref_fasta, outprefix, cortex_root=None, stampy_sc
     ]))
 
 
-class CortexRunCalls:
-    def __init__(self, ref_dir, reads_infile, outdir, sample_name, cortex_root=None, stampy_script=None,
+class _CortexRunCalls:
+    def __init__(self, ref_dir, reads_infile, outdir, sample_name,
+                 cortex_root=None, stampy_script=None,
                  vcftools_dir=None, mccortex=None, mem_height=22):
         self.ref_dir = os.path.abspath(ref_dir)
         self.reads_infile = os.path.abspath(reads_infile)
@@ -117,7 +116,7 @@ class CortexRunCalls:
         self.cortex_log = os.path.join(self.outdir, 'cortex.log')
 
         if os.path.exists(self.outdir):
-            raise Error('Error! Output directory already exists ' + self.outdir)
+            raise Exception('Exception! Output directory already exists ' + self.outdir)
 
         self.cortex_outdir = os.path.join(self.outdir, 'cortex.out')
         self.cortex_reads_fofn = os.path.join(self.outdir, 'cortex.in.fofn')
@@ -138,7 +137,7 @@ class CortexRunCalls:
         try:
             os.mkdir(self.outdir)
         except:
-            raise Error('Error making directory ' + self.outdir + '. Cannot continue')
+            raise Exception('Exception making directory ' + self.outdir + '. Cannot continue')
 
         with open(self.cortex_reads_fofn, 'w') as f:
             print(self.reads_infile, file=f)
@@ -149,7 +148,7 @@ class CortexRunCalls:
         with open(self.cortex_ref_fofn, 'w') as f:
             print(os.path.join(self.ref_dir, 'ref.fa'), file=f)
 
-    def _tidy_files(self):
+    def _cleanup_files(self):
         shutil.rmtree(os.path.join(self.cortex_outdir, 'tmp_filelists'))
 
         for filename in glob.glob(os.path.join(self.cortex_outdir, 'binaries', 'uncleaned', '**', '**')):
@@ -188,14 +187,14 @@ class CortexRunCalls:
 
         kmer_dirs = [x for x in os.listdir(cleaned_dir) if x.startswith('k')]
         if len(kmer_dirs) != 1:
-            print('Error finding kmers directory inside ' + cleaned_dir + ' ... cannot run mccortex view kmers',
+            print('Exception finding kmers directory inside ' + cleaned_dir + ' ... cannot run mccortex view kmers',
                   file=sys.stderr)
 
         kmer_dir = os.path.join(cleaned_dir, kmer_dirs[0])
         ctx_files = [x for x in os.listdir(kmer_dir) if x.endswith('.ctx')]
 
         if len(ctx_files) != 1:
-            print('Error finding ctx file inside ' + kmer_dir + ' ... cannot run mccortex view kmers', file=sys.stderr)
+            print('Exception finding ctx file inside ' + kmer_dir + ' ... cannot run mccortex view kmers', file=sys.stderr)
 
         ctx_file = os.path.join(kmer_dir, ctx_files[0])
         assert os.path.exists(ctx_file)
@@ -237,10 +236,18 @@ class CortexRunCalls:
         ])
 
         utils.syscall(cmd)
-        self._tidy_files()
+        self._cleanup_files()
         self._run_mccortex_view_kmers()
 
 
-def run(ref_dir, reads_file, output_dir, sample_name):
-    ctx = CortexRunCalls(ref_dir, reads_file, output_dir, sample_name)
+def run(ref_fasta, outprefix, ref_dir, reads_file, output_dir, sample_name):
+    make_run_calls_index_files(ref_fasta, outprefix,
+                               cortex_root=None,
+                               stampy_script=None,
+                               vcftools_dir=None,
+                               mem_height=22)
+    ctx = _CortexRunCalls(ref_dir,
+                          reads_file,
+                          output_dir,
+                          sample_name)
     ctx.run()
