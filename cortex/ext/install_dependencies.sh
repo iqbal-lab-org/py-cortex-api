@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 install_root=$PWD/cortex/ext
 mkdir -p $install_root
 
@@ -7,10 +9,8 @@ cd $install_root
 wget http://www.well.ox.ac.uk/~gerton/software/Stampy/stampy-latest.tgz
 tar xf stampy-latest.tgz
 rm stampy-latest.tgz
-mv stampy-* stampy
-cd stampy
-make
-
+cd stampy-*
+make python=python2
 
 #________________________ vcftools _______________________#
 cd $install_root

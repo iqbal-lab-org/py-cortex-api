@@ -4,5 +4,6 @@ __pycache__
 *.pyc
 *.iml
 cortex/ext/vcftools
-cortex/ext/stampy
+cortex/ext/stampy-1.0.32
 cortex/ext/cortex
+cortex/tests

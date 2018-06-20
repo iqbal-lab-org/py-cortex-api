@@ -1,8 +1,9 @@
 import os
 import glob
 import shutil
+import pathlib
 
-import pyfastaq
+from Bio import SeqIO
 
 from . import settings
 from . import utils
@@ -12,13 +13,17 @@ class _IndexPaths:
     def __init__(self, directory):
         self.directory = directory
 
-        self.names_file = os.path.join(self.directory, '.fofn')
-        self.dump_binary_ctx = os.path.join(self.directory, '.k31.ctx')
-        self.stampy = os.path.join(self.directory, '.stampy')
-        self.reference_fai = os.path.join(self.directory, 'ref.fa.fai')
+        self.names_file = os.path.join(self.directory, 'fofn')
+        self.dump_binary_ctx = os.path.join(self.directory, 'k31.ctx')
+        self.stampy = os.path.join(self.directory, 'stampy')
 
 
 def _make_indexes_files(reference_fasta, index_paths, mem_height=22):
+    pathlib.Path(index_paths.directory).mkdir(parents=True, exist_ok=True)
+
+    reference_destination = os.path.join(index_paths.directory, 'ref.fa')
+    shutil.copyfile(reference_fasta, reference_destination)
+
     with open(index_paths.names_file, 'w') as f:
         print(os.path.abspath(reference_fasta), file=f)
 
@@ -37,12 +42,14 @@ def _make_indexes_files(reference_fasta, index_paths, mem_height=22):
     os.unlink(index_paths.names_file)
 
     utils.syscall(' '.join([
+        'python2',
         settings.STAMPY_SCRIPT,
         '-G', index_paths.stampy,
         reference_fasta,
     ]))
 
     utils.syscall(' '.join([
+        'python2',
         settings.STAMPY_SCRIPT,
         '-g', index_paths.stampy,
         '-H', index_paths.stampy,
@@ -78,13 +85,13 @@ class _CortexCallsPaths:
 
         self.cortex_log = os.path.join(self.directory, 'cortex.log')
         self.cortex_output_directory = os.path.join(self.directory, 'cortex.out')
-        self.cortex_reads_fofn = os.path.join(self.directory, 'cortex.in.fofn')
-        self.cortex_reads_index = os.path.join(self.directory, 'cortex.in.index')
-        self.cortex_reference_fofn = os.path.join(self.directory, 'cortex.in.index_ref.fofn')
+        self.cortex_reads_fofn = os.path.join(self.directory, 'cortex_in.fofn')
+        self.cortex_reads_index = os.path.join(self.directory, 'cortex_in.index')
+        self.cortex_reference_fofn = os.path.join(self.directory, 'cortex_in_index_ref.fofn')
 
 
 def _make_calls_input_files(reads_file, calls_paths: _CortexCallsPaths, index_paths: _IndexPaths):
-    os.mkdir(calls_paths.directory)
+    pathlib.Path(calls_paths.directory).mkdir(parents=True, exist_ok=True)
 
     with open(calls_paths.cortex_reads_fofn, 'w') as f:
         print(reads_file, file=f)
@@ -126,8 +133,13 @@ def _cleanup_calls_files(sample_name, calls_paths: _CortexCallsPaths):
                 os.unlink(filename)
 
 
-def _execute_calls(calls_paths: _CortexCallsPaths, index_paths: _IndexPaths, mem_height=22):
-    genome_size = pyfastaq.tasks.stats_from_fai(index_paths.reference_fai)['total_length']
+def _get_sequence_length(fasta_file_path):
+    record = next(SeqIO.parse(fasta_file_path, "fasta"))
+    return len(record.seq)
+
+
+def _execute_calls(reference_fasta, calls_paths: _CortexCallsPaths, index_paths: _IndexPaths, mem_height=22):
+    number_of_bases_in_reference = _get_sequence_length(reference_fasta)
     cortex_calls_script = os.path.join(settings.CORTEX_ROOT, 'scripts', 'calling', 'run_calls.pl')
 
     command = ' '.join([
@@ -140,11 +152,11 @@ def _execute_calls(calls_paths: _CortexCallsPaths, index_paths: _IndexPaths, mem
         '--outdir', calls_paths.cortex_output_directory,
         '--outvcf cortex',
         '--ploidy 2',
-        '--stampy_hash', os.path.join(index_paths.directory, 'ref.stampy'),
+        '--stampy_hash', os.path.join(index_paths.directory, 'stampy'),
         '--stampy_bin', settings.STAMPY_SCRIPT,
         '--list_ref_fasta', calls_paths.cortex_reference_fofn,
         '--refbindir', index_paths.directory,
-        '--genome_size', str(genome_size),
+        '--genome_size', str(number_of_bases_in_reference),
         '--qthresh 5',
         '--mem_height', str(mem_height),
         '--mem_width 100',
@@ -158,12 +170,13 @@ def _execute_calls(calls_paths: _CortexCallsPaths, index_paths: _IndexPaths, mem
 
 
 def run(reference_fasta, reads_file, output_directory, sample_name):
+    mem_height = 16
+
     indexes_directory = os.path.join(output_directory, 'indexes')
     index_paths = _IndexPaths(indexes_directory)
-    _make_indexes_files(reference_fasta, index_paths, mem_height=22)
+    _make_indexes_files(reference_fasta, index_paths, mem_height=mem_height)
 
     calls_paths = _CortexCallsPaths(output_directory)
-
     _make_calls_input_files(reads_file, calls_paths, index_paths)
-    _execute_calls(calls_paths, index_paths)
+    _execute_calls(reference_fasta, calls_paths, index_paths, mem_height=mem_height)
     _cleanup_calls_files(sample_name, calls_paths)

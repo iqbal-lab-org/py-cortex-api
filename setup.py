@@ -64,7 +64,7 @@ setuptools.setup(
     package_data=package_data,
     include_package_data=True,
     install_requires=[
-        'pyfastaq >= 3.16.0',
+        'biopython >= 1.70',
     ],
     cmdclass={
         'dependencies': InstallCommand,
