@@ -17,3 +17,7 @@ cortex.calls("./reference.fasta",
              "./output",
              "sample_name")
 ```
+
+# Licence
+
+MIT
