@@ -67,16 +67,16 @@ def _replace_sample_name_in_vcf(infile, outfile, sample_name):
 
             fields = line.rstrip().split('\t')
             if len(fields) < 10:
-                raise Exception('Not enough columns in VCF header line of VCF', line)
+                raise RuntimeError('Not enough columns in VCF header line of VCF', line)
             elif len(fields) == 10:
                 fields[9] = sample_name
                 print(*fields, sep='\t', file=f_out)
                 changed_name = True
             else:
-                raise Exception('More than one sample in VCF', line)
+                raise RuntimeError('More than one sample in VCF', line)
 
     if not changed_name:
-        raise Exception('No #CHROM line found in VCF file', infile)
+        raise RuntimeError('No #CHROM line found in VCF file', infile)
 
 
 class _CortexCallsPaths:
@@ -84,7 +84,7 @@ class _CortexCallsPaths:
         self.directory = os.path.abspath(directory)
 
         self.cortex_log = os.path.join(self.directory, 'cortex.log')
-        self.cortex_output_directory = os.path.join(self.directory, 'cortex.out')
+        self.cortex_output_directory = os.path.join(self.directory, 'cortex_output')
         self.cortex_reads_fofn = os.path.join(self.directory, 'cortex_in.fofn')
         self.cortex_reads_index = os.path.join(self.directory, 'cortex_in.index')
         self.cortex_reference_fofn = os.path.join(self.directory, 'cortex_in_index_ref.fofn')
@@ -171,6 +171,9 @@ def _execute_calls(reference_fasta, calls_paths: _CortexCallsPaths, index_paths:
 
 def run(reference_fasta, reads_file, output_directory, sample_name):
     mem_height = 16
+    reference_fasta = os.path.abspath(reference_fasta)
+    reads_file = os.path.abspath(reads_file)
+    output_directory = os.path.abspath(output_directory)
 
     indexes_directory = os.path.join(output_directory, 'indexes')
     index_paths = _IndexPaths(indexes_directory)
