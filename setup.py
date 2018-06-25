@@ -21,7 +21,7 @@ class DependencyInstaller:
 
 
 class InstallCommand(install):
-    """pip3 install -vvv ./gramtools"""
+    """pip3 install -vvv ./py-cortex-api"""
     def run(self):
         dependencies = DependencyInstaller()
         dependencies.build()
@@ -30,7 +30,7 @@ class InstallCommand(install):
 
 
 class DevelopCommand(develop):
-    """pip3 install -vvv --editable ./gramtools"""
+    """pip3 install -vvv --editable ./py-cortex-api"""
     def run(self):
         dependencies = DependencyInstaller()
         dependencies.build()
