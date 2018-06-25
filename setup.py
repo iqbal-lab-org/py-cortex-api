@@ -55,7 +55,7 @@ with open('./README.md') as fhandle:
     readme = fhandle.read()
 
 setuptools.setup(
-    name='cortex',
+    name='py-cortex-api',
     version='1.0',
     description='Python API for cortex.',
     url='https://github.com/iqbal-lab-org/py-cortex-api',
