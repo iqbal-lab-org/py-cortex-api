@@ -2,6 +2,7 @@ import os
 import glob
 import shutil
 import pathlib
+import tempfile
 
 from Bio import SeqIO
 
@@ -56,10 +57,10 @@ def _make_indexes_files(reference_fasta, index_paths, mem_height=22):
     ]))
 
 
-def _replace_sample_name_in_vcf(infile, outfile, sample_name):
+def _replace_sample_name_in_vcf(input_file_path, output_file_path, sample_name):
     changed_name = False
 
-    with open(infile) as f_in, open(outfile, 'w') as f_out:
+    with open(input_file_path) as f_in, open(output_file_path, 'w') as f_out:
         for line in f_in:
             if not line.startswith('#CHROM'):
                 print(line, end='', file=f_out)
@@ -76,7 +77,7 @@ def _replace_sample_name_in_vcf(infile, outfile, sample_name):
                 raise RuntimeError('More than one sample in VCF', line)
 
     if not changed_name:
-        raise RuntimeError('No #CHROM line found in VCF file', infile)
+        raise RuntimeError('No #CHROM line found in VCF file', input_file_path)
 
 
 class _CortexCallsPaths:
@@ -169,17 +170,38 @@ def _execute_calls(reference_fasta, calls_paths: _CortexCallsPaths, index_paths:
     utils.syscall(command)
 
 
-def run(reference_fasta, reads_file, output_directory, sample_name):
+def _find_final_vcf_file_path(cortex_directory):
+    path_pattern = os.path.join(cortex_directory, 'cortex_output/vcfs/*_wk_*FINAL*raw.vcf')
+    found = list(glob.glob(path_pattern, recursive=True))
+    assert len(found) == 1, "Multiple possible output cortex VCF files found"
+    return found[0]
+
+
+def run(reference_fasta, reads_file, output_vcf_file_path, sample_name='sample_name', tmp_directory=None, cleanup=True):
     mem_height = 16
     reference_fasta = os.path.abspath(reference_fasta)
     reads_file = os.path.abspath(reads_file)
-    output_directory = os.path.abspath(output_directory)
 
-    indexes_directory = os.path.join(output_directory, 'indexes')
+    if tmp_directory is None:
+        tmp_directory = tempfile.mkdtemp()
+    tmp_directory = os.path.abspath(tmp_directory)
+
+    indexes_directory = os.path.join(tmp_directory, 'indexes')
     index_paths = _IndexPaths(indexes_directory)
     _make_indexes_files(reference_fasta, index_paths, mem_height=mem_height)
 
-    calls_paths = _CortexCallsPaths(output_directory)
+    calls_paths = _CortexCallsPaths(tmp_directory)
     _make_calls_input_files(reads_file, calls_paths, index_paths)
     _execute_calls(reference_fasta, calls_paths, index_paths, mem_height=mem_height)
-    _cleanup_calls_files(sample_name, calls_paths)
+
+    # TODO: investigate root cause of raised exception
+    try:
+        _cleanup_calls_files(sample_name, calls_paths)
+    except RuntimeError:
+        pass
+
+    final_vcf_path = _find_final_vcf_file_path(tmp_directory)
+    shutil.copyfile(final_vcf_path, output_vcf_file_path)
+
+    if cleanup:
+        shutil.rmtree(tmp_directory)
