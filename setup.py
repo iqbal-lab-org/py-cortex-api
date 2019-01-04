@@ -1,58 +1,38 @@
 import os
 import subprocess
 import setuptools
-from setuptools.command.install import install
 from setuptools.command.develop import develop
-from setuptools.command.test import test
+from distutils.command.build import build
 
 
-class DependencyInstaller:
-    def __init__(self):
-        self.root_dir = os.path.dirname(os.path.realpath(__file__))
-        self.cmake_dir = os.path.join(self.root_dir, 'cmake-build-debug')
+with open('./README.md') as file_handle:
+    readme = file_handle.read()
 
-    @staticmethod
-    def build():
-        print('Building dependencies')
-        subprocess.call(['./cortex/ext/install_dependencies.sh'], shell=True)
-
-    def test(self):
-        pass
+_root_dir = os.path.dirname(os.path.realpath(__file__))
 
 
-class InstallCommand(install):
+def _build_backend(root_dir):
+    print('START: Building backend dependencies')
+    return_code = subprocess.call(['./cortex/ext/install_dependencies.sh'], shell=True, cwd=root_dir)
+    if return_code != 0:
+        print('ERROR: backend compilation failed', return_code)
+        exit(-1)
+    print('END: Building backend dependencies. Return code:', return_code)
+
+
+class _BuildCommand(build):
     """pip3 install -vvv ./py-cortex-api"""
     def run(self):
-        dependencies = DependencyInstaller()
-        dependencies.build()
-        dependencies.test()
-        install.run(self)
+        _build_backend(_root_dir)
+        build.run(self)
 
 
-class DevelopCommand(develop):
+class _DevelopCommand(develop):
     """pip3 install -vvv --editable ./py-cortex-api"""
     def run(self):
-        dependencies = DependencyInstaller()
-        dependencies.build()
-        dependencies.test()
+        _build_backend(_root_dir)
         develop.run(self)
 
-
-class TestCommand(test):
-    """python3 setup.py test"""
-    def run(self):
-        dependencies = DependencyInstaller()
-        dependencies.build()
-        dependencies.test()
-        test.run(self)
-
-
-package_data = {
-    'cortex': ['ext/*'],
-}
-
-with open('./README.md') as fhandle:
-    readme = fhandle.read()
 
 setuptools.setup(
     name='py-cortex-api',
@@ -61,13 +41,11 @@ setuptools.setup(
     url='https://github.com/iqbal-lab-org/py-cortex-api',
     long_description=readme,
     packages=setuptools.find_packages("."),
-    package_data=package_data,
     include_package_data=True,
     install_requires=[
         'biopython >= 1.70',
     ],
     cmdclass={
-        'dependencies': InstallCommand,
-        'develop': DevelopCommand,
-        'test': TestCommand,
+        'build': _BuildCommand,
+        'develop': _DevelopCommand
     })
