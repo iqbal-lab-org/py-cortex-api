@@ -3,6 +3,7 @@ import glob
 import shutil
 import pathlib
 import tempfile
+import sys
 
 from Bio import SeqIO
 
@@ -167,7 +168,15 @@ def _execute_calls(reference_fasta, calls_paths: _CortexCallsPaths, index_paths:
         '--workflow independent',
         '--logfile', calls_paths.cortex_log,
     ])
-    utils.syscall(command)
+
+    try:
+        utils.syscall(command)
+    except Exception:
+        # In cortex, stderr and stdout gets written log files so that raised errors in this API do not necessarily get what
+        # Actually caused the error.
+        print("----------------------------\n"
+              "Please refer to cortex log file at {} for more information.".format(calls_paths.cortex_log), file=sys.stderr)
+        exit()
 
 
 def _find_final_vcf_file_path(cortex_directory):
@@ -194,14 +203,11 @@ def run(reference_fasta, reads_file, output_vcf_file_path, sample_name='sample_n
     _make_calls_input_files(reads_file, calls_paths, index_paths)
     _execute_calls(reference_fasta, calls_paths, index_paths, mem_height=mem_height)
 
-    # TODO: investigate root cause of raised exception
-    try:
-        _cleanup_calls_files(sample_name, calls_paths)
-    except RuntimeError:
-        pass
 
     final_vcf_path = _find_final_vcf_file_path(tmp_directory)
     shutil.copyfile(final_vcf_path, output_vcf_file_path)
 
     if cleanup:
         shutil.rmtree(tmp_directory)
+    else:
+        _cleanup_calls_files(sample_name, calls_paths)

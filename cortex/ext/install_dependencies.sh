@@ -12,6 +12,14 @@ rm stampy-latest.tgz
 cd stampy-*
 make python=python2
 
+# Warn if /usr/bin/env python does not point to python2; this is required for running stampy (is the stampy.py shebang).
+match_py2=$(/usr/bin/env python --version 2>&1 | grep -E '[A-Za-z]+ 2\..*|^2\..*')
+if [ -z "${match_py2}" ]; then
+    echo "WARNING: '/usr/bin/env python' does not return a python 2 version."
+    echo "Running gramtools `discover` as is will fail (when running stampy.py)"
+    echo "Please make /usr/bin/env python point to a python 2."
+fi
+
 #________________________ vcftools _______________________#
 cd $install_root
 wget https://github.com/vcftools/vcftools/releases/download/v0.1.15/vcftools-0.1.15.tar.gz
@@ -22,6 +30,11 @@ cd vcftools
 ./configure --prefix $PWD/install
 make
 make install
+
+# cortex needs the perl/ directory. It expects it to be in the vcftools root,
+# but somehwere between v0.1.9 and v0.1.15 it moved into src/.
+ln -s src/perl/ .
+
 
 
 #________________________ cortex _________________________#
