@@ -3,6 +3,7 @@ import subprocess
 import setuptools
 from setuptools.command.develop import develop
 from distutils.command.build import build
+import sys
 
 
 with open('./README.md') as file_handle:
@@ -13,10 +14,22 @@ _root_dir = os.path.dirname(os.path.realpath(__file__))
 
 def _build_backend(root_dir):
     print('START: Building backend dependencies')
-    return_code = subprocess.call(['./cortex/ext/install_dependencies.sh'], shell=True, cwd=root_dir)
+    completed_process = subprocess.run(['./cortex/ext/install_dependencies.sh'],
+                                  shell=True,
+                                  cwd=root_dir,
+                                  stderr=subprocess.PIPE,
+                                  stdout=subprocess.DEVNULL,
+                                  universal_newlines = True)
+    return_code = completed_process.returncode
     if return_code != 0:
         print('ERROR: backend compilation failed', return_code)
         exit(-1)
+
+    # Display warnings
+    stderr = [line for line in completed_process.stderr.split("\n") if "Warning:" in line]
+    if len(stderr) > 0:
+        print("\n".join(stderr), file=sys.stderr)
+
     print('END: Building backend dependencies. Return code:', return_code)
 
 
@@ -24,7 +37,7 @@ class _BuildCommand(build):
     """pip3 install -vvv ./py-cortex-api"""
     def run(self):
         _build_backend(_root_dir)
-        build.run(self)
+        #build.run(self)
 
 
 class _DevelopCommand(develop):
