@@ -6,7 +6,7 @@ Python API for [cortex](https://github.com/iqbal-lab/cortex).
 pip3 install git+https://github.com/iqbal-lab-org/py-cortex-api
 ```
 
-#### Requierments
+#### Requirements
 ```
 sudo apt install r-base-core
 ```
