@@ -187,7 +187,6 @@ def _find_final_vcf_file_path(cortex_directory):
 
 
 def run(reference_fasta, reads_file, output_vcf_file_path, sample_name='sample_name', tmp_directory=None, cleanup=True):
-    mem_height = 16
     reference_fasta = os.path.abspath(reference_fasta)
     reads_file = os.path.abspath(reads_file)
 
@@ -197,11 +196,11 @@ def run(reference_fasta, reads_file, output_vcf_file_path, sample_name='sample_n
 
     indexes_directory = os.path.join(tmp_directory, 'indexes')
     index_paths = _IndexPaths(indexes_directory)
-    _make_indexes_files(reference_fasta, index_paths, mem_height=mem_height)
+    _make_indexes_files(reference_fasta, index_paths)
 
     calls_paths = _CortexCallsPaths(tmp_directory)
     _make_calls_input_files(reads_file, calls_paths, index_paths)
-    _execute_calls(reference_fasta, calls_paths, index_paths, mem_height=mem_height)
+    _execute_calls(reference_fasta, calls_paths, index_paths) # Default mem_height will be used
 
 
     final_vcf_path = _find_final_vcf_file_path(tmp_directory)
