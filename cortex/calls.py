@@ -92,11 +92,12 @@ class _CortexCallsPaths:
         self.cortex_reference_fofn = os.path.join(self.directory, 'cortex_in_index_ref.fofn')
 
 
-def _make_calls_input_files(reads_file, calls_paths: _CortexCallsPaths, index_paths: _IndexPaths):
+def _make_calls_input_files(reads_files, calls_paths: _CortexCallsPaths, index_paths: _IndexPaths):
     pathlib.Path(calls_paths.directory).mkdir(parents=True, exist_ok=True)
 
     with open(calls_paths.cortex_reads_fofn, 'w') as f:
-        print(reads_file, file=f)
+        for reads_file in reads_files:
+            print(reads_file, file=f)
 
     with open(calls_paths.cortex_reads_index, 'w') as f:
         print('sample', calls_paths.cortex_reads_fofn, '.', '.', sep='\t', file=f)
@@ -186,9 +187,9 @@ def _find_final_vcf_file_path(cortex_directory):
     return found[0]
 
 
-def run(reference_fasta, reads_file, output_vcf_file_path, sample_name='sample_name', tmp_directory=None, cleanup=True):
+def run(reference_fasta, reads_files, output_vcf_file_path, sample_name='sample_name', tmp_directory=None, cleanup=True):
     reference_fasta = os.path.abspath(reference_fasta)
-    reads_file = os.path.abspath(reads_file)
+    reads_files = [os.path.abspath(reads_file) for reads_file in reads_files]
 
     if tmp_directory is None:
         tmp_directory = tempfile.mkdtemp()
@@ -199,7 +200,7 @@ def run(reference_fasta, reads_file, output_vcf_file_path, sample_name='sample_n
     _make_indexes_files(reference_fasta, index_paths)
 
     calls_paths = _CortexCallsPaths(tmp_directory)
-    _make_calls_input_files(reads_file, calls_paths, index_paths)
+    _make_calls_input_files(reads_files, calls_paths, index_paths)
     _execute_calls(reference_fasta, calls_paths, index_paths) # Default mem_height will be used
 
 
