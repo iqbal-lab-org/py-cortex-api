@@ -183,7 +183,10 @@ def _execute_calls(reference_fasta, calls_paths: _CortexCallsPaths, index_paths:
 def _find_final_vcf_file_path(cortex_directory):
     path_pattern = os.path.join(cortex_directory, 'cortex_output/vcfs/*_wk_*FINAL*raw.vcf')
     found = list(glob.glob(path_pattern, recursive=True))
-    assert len(found) == 1, "Multiple possible output cortex VCF files found"
+    if len(found) == 0:
+        return None
+    if len(found) > 1:
+        raise ValueError("Multiple possible output cortex VCF files found")
     return found[0]
 
 
@@ -205,7 +208,11 @@ def run(reference_fasta, reads_files, output_vcf_file_path, sample_name='sample_
 
 
     final_vcf_path = _find_final_vcf_file_path(tmp_directory)
-    shutil.copyfile(final_vcf_path, output_vcf_file_path)
+    if final_vcf_path is not None:
+        shutil.copyfile(final_vcf_path, output_vcf_file_path)
+    else:
+        message = f"No vcf found as output. Please check logs in {tmp_directory} for reasons."
+        raise FileNotFoundError(message)
 
     if cleanup:
         shutil.rmtree(tmp_directory)

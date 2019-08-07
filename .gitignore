@@ -6,4 +6,4 @@ __pycache__
 cortex/ext/vcftools*
 cortex/ext/stampy*
 cortex/ext/cortex*
-cortex/tests
+*~

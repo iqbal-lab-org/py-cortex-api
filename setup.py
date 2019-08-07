@@ -53,11 +53,13 @@ setuptools.setup(
     description='Python API for cortex.',
     url='https://github.com/iqbal-lab-org/py-cortex-api',
     long_description=readme,
+    long_description_content_type="text/markdown",
     packages=setuptools.find_packages("."),
     include_package_data=True,
     install_requires=[
         'biopython >= 1.70',
     ],
+    test_suite="cortex.tests",
     cmdclass={
         'build': _BuildCommand,
         'develop': _DevelopCommand
