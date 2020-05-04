@@ -2,6 +2,13 @@ import sys
 import hashlib
 import subprocess
 
+from Bio import SeqIO
+
+
+def get_sequence_length(fasta_file_path):
+    record = next(SeqIO.parse(fasta_file_path, "fasta"))
+    return len(record.seq)
+
 
 def syscall(command):
     command = list(map(str, command))

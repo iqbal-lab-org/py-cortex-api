@@ -6,15 +6,14 @@ import sys
 from pathlib import Path
 from typing import List, Union
 
-from Bio import SeqIO
-
 from . import settings
 from . import utils
 
 StrPath = str
 PathLike = Union[StrPath, Path]
 
-class _IndexPaths:
+
+class _CortexIndex:
     def __init__(self, directory: Path):
         self.base = directory.resolve()
 
@@ -23,40 +22,123 @@ class _IndexPaths:
         self.dump_binary_ctx = self.base / 'k31.ctx'
         self.stampy = self.base / 'stampy'
 
+    def make(self, reference_fasta: Path, mem_height=22):
+        with self.ref_names_file.open('w') as f:
+            print(str(reference_fasta), file=f)
 
-def _make_indexes_files(reference_fasta: Path, index_paths: _IndexPaths, mem_height=22):
-    index_paths.base.mkdir(parents=True, exist_ok=True)
+        cortex_var = os.path.join(settings.CORTEX_ROOT, 'bin', 'cortex_var_31_c1')
+        utils.syscall([
+            cortex_var,
+            '--kmer_size', 31,
+            '--mem_height', str(mem_height),
+            '--mem_width', 100,
+            '--se_list', self.ref_names_file,
+            '--max_read_len', 10000,
+            '--dump_binary', self.dump_binary_ctx,
+            '--sample_id', 'REF',
+        ])
 
-    with index_paths.ref_names_file.open('w') as f:
-        print(str(reference_fasta), file=f)
+        self.ref_names_file.unlink()
 
-    cortex_var = os.path.join(settings.CORTEX_ROOT, 'bin', 'cortex_var_31_c1')
-    utils.syscall([
-        cortex_var,
-        '--kmer_size', 31,
-        '--mem_height', str(mem_height),
-        '--mem_width', 100,
-        '--se_list', index_paths.ref_names_file,
-        '--max_read_len', 10000,
-        '--dump_binary', index_paths.dump_binary_ctx,
-        '--sample_id', 'REF',
-    ])
+        utils.syscall([
+            'python2',
+            settings.STAMPY_SCRIPT,
+            '-G', self.stampy,
+            reference_fasta,
+        ])
 
-    index_paths.ref_names_file.unlink()
+        utils.syscall([
+            'python2',
+            settings.STAMPY_SCRIPT,
+            '-g', self.stampy,
+            '-H', self.stampy,
+        ])
 
-    utils.syscall([
-        'python2',
-        settings.STAMPY_SCRIPT,
-        '-G', index_paths.stampy,
-        reference_fasta,
-    ])
 
-    utils.syscall([
-        'python2',
-        settings.STAMPY_SCRIPT,
-        '-g', index_paths.stampy,
-        '-H', index_paths.stampy,
-    ])
+class _CortexCall:
+    """
+    fofn: file of file names
+    """
+
+    def __init__(self, directory: Path, reference_fasta: Path):
+        self.base: Path = directory.resolve()
+        self.base.mkdir(parents=True, exist_ok=True)
+
+        self.cortex_log = self.base / 'cortex.log'
+        self.cortex_output_directory = self.base / 'cortex_output'
+        self.cortex_reads_fofn = self.base / 'cortex_in.fofn'
+        self.cortex_reads_index = self.base / 'cortex_in.index'
+        self.cortex_reference_fofn = self.base / 'cortex_in_index_ref.fofn'
+
+        self.index = _CortexIndex(self.base)
+        self.index.make(reference_fasta)
+
+
+    def make_input_files(self, reads_files: List[Path]):
+        self.base.mkdir(parents=True, exist_ok=True)
+
+        # List sample's read files
+        with self.cortex_reads_fofn.open('w') as f:
+            for reads_file in reads_files:
+                print(reads_file, file=f)
+
+        # Sample name + file listing read files
+        with self.cortex_reads_index.open('w') as f:
+            print('sample', self.cortex_reads_fofn, '.', '.', sep='\t', file=f)
+
+        with self.cortex_reference_fofn.open('w') as f:
+            print(self.index.reference_fasta, file=f)
+
+
+    def execute_calls(self, reference_fasta, mem_height=22):
+        number_of_bases_in_reference = utils.get_sequence_length(reference_fasta)
+        cortex_calls_script = os.path.join(settings.CORTEX_ROOT, 'scripts', 'calling', 'run_calls.pl')
+
+        # See https://github.com/iqbal-lab/cortex/tree/master/doc for guidance on command arguments
+        command = [
+            cortex_calls_script,
+            '--first_kmer', 31,
+            '--fastaq_index', self.cortex_reads_index,
+            '--auto_cleaning', 'yes',
+            '--bc', 'yes',
+            '--pd', 'no',
+            '--outdir', self.cortex_output_directory,
+            '--outvcf', 'cortex',
+            '--ploidy', '2',
+            '--stampy_hash', self.index.stampy,
+            '--stampy_bin', settings.STAMPY_SCRIPT,
+            '--list_ref_fasta', self.cortex_reference_fofn,
+            '--refbindir', self.index.base,
+            '--genome_size', number_of_bases_in_reference,
+            '--qthresh', 5,
+            '--mem_height', mem_height,
+            '--mem_width', 100,
+            '--vcftools_dir', settings.VCFTOOLS_DIRECTORY,
+            '--do_union', 'yes',
+            '--ref', 'CoordinatesAndInCalling',
+            '--workflow', 'independent',
+            '--logfile', self.cortex_log,
+        ]
+
+        try:
+            utils.syscall(command)
+        except Exception:
+            # In cortex, stderr and stdout gets written log files so that raised errors in this API do not necessarily get what
+            # Actually caused the error.
+            print("----------------------------\n"
+                  "Please refer to cortex log file at {} for more information.".format(self.cortex_log),
+                  file=sys.stderr)
+            exit()
+
+
+def _find_final_vcf_file_path(cortex_directory: Path):
+    path_pattern = cortex_directory / 'cortex_output/vcfs/*_wk_*FINAL*raw.vcf'
+    found = list(glob.glob(path_pattern, recursive=True))
+    if len(found) == 0:
+        return None
+    if len(found) > 1:
+        raise ValueError("Multiple possible output cortex VCF files found")
+    return found[0]
 
 
 def _replace_sample_name_in_vcf(input_file_path, output_file_path, sample_name):
@@ -82,40 +164,15 @@ def _replace_sample_name_in_vcf(input_file_path, output_file_path, sample_name):
         raise RuntimeError('No #CHROM line found in VCF file', input_file_path)
 
 
-class _CortexCallsPaths:
-    def __init__(self, directory: StrPath):
-        self.base: Path = Path(directory).resolve()
+def _cleanup_calls_files(sample_name, calls_paths: _CortexCall):
+    shutil.rmtree(calls_paths.cortex_output_directory / 'tmp_filelists')
 
-        self.cortex_log = self.base / 'cortex.log'
-        self.cortex_output_directory = self.base / 'cortex_output'
-        self.cortex_reads_fofn = self.base / 'cortex_in.fofn'
-        self.cortex_reads_index = self.base / 'cortex_in.index'
-        self.cortex_reference_fofn = self.base / 'cortex_in_index_ref.fofn'
-
-
-def _make_calls_input_files(reads_files: List[Path], calls_paths: _CortexCallsPaths,
-                            index_paths: _IndexPaths):
-    calls_paths.base.mkdir(parents=True, exist_ok=True)
-
-    with calls_paths.cortex_reads_fofn.open('w') as f:
-        for reads_file in reads_files:
-            print(reads_file, file=f)
-
-    with calls_paths.cortex_reads_index.open('w') as f:
-        print('sample', calls_paths.cortex_reads_fofn, '.', '.', sep='\t', file=f)
-
-    with calls_paths.cortex_reference_fofn.open('w') as f:
-        print(index_paths.reference_fasta, file=f)
-
-
-def _cleanup_calls_files(sample_name, calls_paths: _CortexCallsPaths):
-    shutil.rmtree(os.path.join(calls_paths.cortex_output_directory, 'tmp_filelists'))
-
-    for filename in glob.glob(os.path.join(calls_paths.cortex_output_directory, 'binaries', 'uncleaned', '**', '**')):
+    for filename in glob.glob(calls_paths.cortex_output_directory / 'binaries' /
+                              'uncleaned' / '**' / '**'):
         if not (filename.endswith('log') or filename.endswith('.covg')):
             os.unlink(filename)
 
-    for filename in glob.glob(os.path.join(calls_paths.cortex_output_directory, 'calls', '**')):
+    for filename in glob.glob(calls_paths.cortex_output_directory / 'calls' / '**'):
         if os.path.isdir(filename):
             for filename2 in os.listdir(filename):
                 if not filename2.endswith('log'):
@@ -138,63 +195,8 @@ def _cleanup_calls_files(sample_name, calls_paths: _CortexCallsPaths):
                 os.unlink(filename)
 
 
-def _get_sequence_length(fasta_file_path):
-    record = next(SeqIO.parse(fasta_file_path, "fasta"))
-    return len(record.seq)
-
-
-def _execute_calls(reference_fasta, calls_paths: _CortexCallsPaths, index_paths: _IndexPaths, mem_height=22):
-    number_of_bases_in_reference = _get_sequence_length(reference_fasta)
-    cortex_calls_script = os.path.join(settings.CORTEX_ROOT, 'scripts', 'calling', 'run_calls.pl')
-
-    # See https://github.com/iqbal-lab/cortex/tree/master/doc for guidance on command arguments
-    command = [
-        cortex_calls_script,
-        '--first_kmer', 31,
-        '--fastaq_index', calls_paths.cortex_reads_index,
-        '--auto_cleaning', 'yes',
-        '--bc', 'yes',
-        '--pd', 'no',
-        '--outdir', calls_paths.cortex_output_directory,
-        '--outvcf', 'cortex',
-        '--ploidy', '2',
-        '--stampy_hash', os.path.join(index_paths.base, 'stampy'),
-        '--stampy_bin', settings.STAMPY_SCRIPT,
-        '--list_ref_fasta', calls_paths.cortex_reference_fofn,
-        '--refbindir', index_paths.base,
-        '--genome_size', str(number_of_bases_in_reference),
-        '--qthresh', 5,
-        '--mem_height', mem_height,
-        '--mem_width', 100,
-        '--vcftools_dir', settings.VCFTOOLS_DIRECTORY,
-        '--do_union', 'yes',
-        '--ref', 'CoordinatesAndInCalling',
-        '--workflow', 'independent',
-        '--logfile', calls_paths.cortex_log,
-    ]
-
-    try:
-        utils.syscall(command)
-    except Exception:
-        # In cortex, stderr and stdout gets written log files so that raised errors in this API do not necessarily get what
-        # Actually caused the error.
-        print("----------------------------\n"
-              "Please refer to cortex log file at {} for more information.".format(calls_paths.cortex_log), file=sys.stderr)
-        exit()
-
-
-def _find_final_vcf_file_path(cortex_directory):
-    path_pattern = os.path.join(cortex_directory, 'cortex_output/vcfs/*_wk_*FINAL*raw.vcf')
-    found = list(glob.glob(path_pattern, recursive=True))
-    if len(found) == 0:
-        return None
-    if len(found) > 1:
-        raise ValueError("Multiple possible output cortex VCF files found")
-    return found[0]
-
-
 def run(reference_fasta: StrPath, reads_files: List[StrPath], output_vcf_file_path: StrPath,
-        sample_name='sample_name', tmp_directory=None, cleanup=True):
+        sample_name='sample_name', tmp_directory=None, cleanup=True) -> None:
     reference_fasta = Path(reference_fasta)
     reads_files = [Path(reads_file).resolve() for reads_file in reads_files]
 
@@ -202,13 +204,9 @@ def run(reference_fasta: StrPath, reads_files: List[StrPath], output_vcf_file_pa
         tmp_directory = tempfile.mkdtemp()
     tmp_directory = Path(tmp_directory).resolve()
 
-    index_paths = _IndexPaths(tmp_directory / 'indexes')
-    _make_indexes_files(reference_fasta, index_paths)
-
-    calls_paths = _CortexCallsPaths(tmp_directory)
-    _make_calls_input_files(reads_files, calls_paths, index_paths)
-    _execute_calls(reference_fasta, calls_paths, index_paths)
-
+    caller = _CortexCall(tmp_directory, reference_fasta)
+    caller.make_input_files(reads_files)
+    caller.execute_calls(reference_fasta)
 
     final_vcf_path = _find_final_vcf_file_path(tmp_directory)
     if final_vcf_path is not None:
@@ -220,4 +218,4 @@ def run(reference_fasta: StrPath, reads_files: List[StrPath], output_vcf_file_pa
     if cleanup:
         shutil.rmtree(tmp_directory)
     else:
-        _cleanup_calls_files(sample_name, calls_paths)
+        _cleanup_calls_files(sample_name, caller)
