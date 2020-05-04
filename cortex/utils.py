@@ -4,8 +4,8 @@ import subprocess
 
 
 def syscall(command):
+    command = list(map(str, command))
     completed_process = subprocess.run(command,
-                                       shell=True,
                                        stderr=subprocess.STDOUT,
                                        stdout=subprocess.PIPE,
                                        universal_newlines=True)

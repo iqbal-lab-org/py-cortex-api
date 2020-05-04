@@ -1,9 +1,21 @@
 .idea
+*.iml
+
+# Python
 __pycache__
 *.egg-info
 *.pyc
-*.iml
+build/
+dist/
+venv/
+
+# Dependencies
 cortex/ext/vcftools*
 cortex/ext/stampy*
 cortex/ext/cortex*
+
+# Vim
 *~
+
+# Book-keeping
+TODOs.rst
