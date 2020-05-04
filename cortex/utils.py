@@ -12,17 +12,24 @@ def get_sequence_length(fasta_file_path):
 
 def syscall(command):
     command = list(map(str, command))
-    completed_process = subprocess.run(command,
-                                       stderr=subprocess.STDOUT,
-                                       stdout=subprocess.PIPE,
-                                       universal_newlines=True)
+    completed_process = subprocess.run(
+        command,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+    )
     if completed_process.returncode == 0:
         return completed_process
 
-    print('Error running this command:', command, file=sys.stderr)
-    print('Return code:', completed_process.returncode, file=sys.stderr)
-    print('Output from stdout and stderr:', completed_process.stdout, sep='\n', file=sys.stderr)
-    raise Exception('Error in system call. Cannot continue')
+    print("Error running this command:", command, file=sys.stderr)
+    print("Return code:", completed_process.returncode, file=sys.stderr)
+    print(
+        "Output from stdout and stderr:",
+        completed_process.stdout,
+        sep="\n",
+        file=sys.stderr,
+    )
+    raise Exception("Error in system call. Cannot continue")
 
 
 def md5(filename):
@@ -45,10 +52,16 @@ def rsync_and_md5(old_name, new_name, md5sum=None):
     if md5sum is None:
         md5sum = md5(old_name)
 
-    syscall('rsync ' + old_name + ' ' + new_name)
+    syscall("rsync " + old_name + " " + new_name)
     new_md5sum = md5(new_name)
 
     if new_md5sum != md5sum:
-        raise Exception('Error copying file ' + old_name + ' -> ' + new_name + '\n. md5s do not match')
+        raise Exception(
+            "Error copying file "
+            + old_name
+            + " -> "
+            + new_name
+            + "\n. md5s do not match"
+        )
     else:
         return md5sum
