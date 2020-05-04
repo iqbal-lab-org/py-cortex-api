@@ -22,7 +22,7 @@ class _CortexIndex:
         self.dump_binary_ctx = self.base / 'k31.ctx'
         self.stampy = self.base / 'stampy'
 
-    def make(self, reference_fasta: Path, mem_height=22):
+    def make(self, reference_fasta: Path, mem_height: int):
         with self.ref_names_file.open('w') as f:
             print(str(reference_fasta), file=f)
 
@@ -30,7 +30,7 @@ class _CortexIndex:
         utils.syscall([
             cortex_var,
             '--kmer_size', 31,
-            '--mem_height', str(mem_height),
+            '--mem_height', mem_height,
             '--mem_width', 100,
             '--se_list', self.ref_names_file,
             '--max_read_len', 10000,
@@ -60,37 +60,37 @@ class _CortexCall:
     fofn: file of file names
     """
 
-    def __init__(self, directory: Path, reference_fasta: Path):
+    def __init__(self, directory: Path, reference_fasta: Path, mem_height: int):
         self.base: Path = directory.resolve()
         self.base.mkdir(parents=True, exist_ok=True)
 
+        self.mem_height = mem_height
+
         self.cortex_log = self.base / 'cortex.log'
-        self.cortex_output_directory = self.base / 'cortex_output'
-        self.cortex_reads_fofn = self.base / 'cortex_in.fofn'
-        self.cortex_reads_index = self.base / 'cortex_in.index'
-        self.cortex_reference_fofn = self.base / 'cortex_in_index_ref.fofn'
+        self.output_directory = self.base / 'cortex_output'
+        self.reads_fofn = self.base / 'cortex_reads_in.fofn'
+        self.reads_index = self.base / 'cortex_reads_in.index'
+        self.reference_fofn = self.base / 'cortex_in_index_ref.fofn'
 
         self.index = _CortexIndex(self.base)
-        self.index.make(reference_fasta)
-
+        self.index.make(reference_fasta, self.mem_height)
 
     def make_input_files(self, reads_files: List[Path]):
         self.base.mkdir(parents=True, exist_ok=True)
 
         # List sample's read files
-        with self.cortex_reads_fofn.open('w') as f:
+        with self.reads_fofn.open('w') as f:
             for reads_file in reads_files:
                 print(reads_file, file=f)
 
         # Sample name + file listing read files
-        with self.cortex_reads_index.open('w') as f:
-            print('sample', self.cortex_reads_fofn, '.', '.', sep='\t', file=f)
+        with self.reads_index.open('w') as f:
+            print('sample', self.reads_fofn, '.', '.', sep='\t', file=f)
 
-        with self.cortex_reference_fofn.open('w') as f:
+        with self.reference_fofn.open('w') as f:
             print(self.index.reference_fasta, file=f)
 
-
-    def execute_calls(self, reference_fasta, mem_height=22):
+    def execute_calls(self, reference_fasta):
         number_of_bases_in_reference = utils.get_sequence_length(reference_fasta)
         cortex_calls_script = os.path.join(settings.CORTEX_ROOT, 'scripts', 'calling', 'run_calls.pl')
 
@@ -98,20 +98,20 @@ class _CortexCall:
         command = [
             cortex_calls_script,
             '--first_kmer', 31,
-            '--fastaq_index', self.cortex_reads_index,
+            '--fastaq_index', self.reads_index,
             '--auto_cleaning', 'yes',
             '--bc', 'yes',
             '--pd', 'no',
-            '--outdir', self.cortex_output_directory,
+            '--outdir', self.output_directory,
             '--outvcf', 'cortex',
             '--ploidy', '2',
             '--stampy_hash', self.index.stampy,
             '--stampy_bin', settings.STAMPY_SCRIPT,
-            '--list_ref_fasta', self.cortex_reference_fofn,
+            '--list_ref_fasta', self.reference_fofn,
             '--refbindir', self.index.base,
             '--genome_size', number_of_bases_in_reference,
             '--qthresh', 5,
-            '--mem_height', mem_height,
+            '--mem_height', self.mem_height,
             '--mem_width', 100,
             '--vcftools_dir', settings.VCFTOOLS_DIRECTORY,
             '--do_union', 'yes',
@@ -123,8 +123,8 @@ class _CortexCall:
         try:
             utils.syscall(command)
         except Exception:
-            # In cortex, stderr and stdout gets written log files so that raised errors in this API do not necessarily get what
-            # Actually caused the error.
+            # In cortex, stderr and stdout gets written log files so that raised errors in this API do not
+            # necessarily get what Actually caused the error.
             print("----------------------------\n"
                   "Please refer to cortex log file at {} for more information.".format(self.cortex_log),
                   file=sys.stderr)
@@ -133,9 +133,10 @@ class _CortexCall:
 
 def _find_final_vcf_file_path(cortex_directory: Path):
     path_pattern = cortex_directory / 'cortex_output/vcfs/*_wk_*FINAL*raw.vcf'
-    found = list(glob.glob(path_pattern, recursive=True))
+    found = list(glob.glob(str(path_pattern), recursive=True))
     if len(found) == 0:
-        return None
+        message = f"No vcf found as output. Please check logs in {cortex_directory} for reasons."
+        raise FileNotFoundError(message)
     if len(found) > 1:
         raise ValueError("Multiple possible output cortex VCF files found")
     return found[0]
@@ -165,14 +166,14 @@ def _replace_sample_name_in_vcf(input_file_path, output_file_path, sample_name):
 
 
 def _cleanup_calls_files(sample_name, calls_paths: _CortexCall):
-    shutil.rmtree(calls_paths.cortex_output_directory / 'tmp_filelists')
+    shutil.rmtree(calls_paths.output_directory / 'tmp_filelists')
 
-    for filename in glob.glob(calls_paths.cortex_output_directory / 'binaries' /
-                              'uncleaned' / '**' / '**'):
+    for filename in glob.glob(str(calls_paths.output_directory / 'binaries' /
+                                  'uncleaned' / '**' / '**')):
         if not (filename.endswith('log') or filename.endswith('.covg')):
             os.unlink(filename)
 
-    for filename in glob.glob(calls_paths.cortex_output_directory / 'calls' / '**'):
+    for filename in glob.glob(str(calls_paths.output_directory / 'calls' / '**')):
         if os.path.isdir(filename):
             for filename2 in os.listdir(filename):
                 if not filename2.endswith('log'):
@@ -180,7 +181,7 @@ def _cleanup_calls_files(sample_name, calls_paths: _CortexCall):
         elif not (filename.endswith('log') or filename.endswith('callsets.genotyped')):
             os.unlink(filename)
 
-    for filename in glob.glob(calls_paths.cortex_output_directory / 'vcfs' / '**'):
+    for filename in glob.glob(str(calls_paths.output_directory / 'vcfs' / '**')):
         if filename.endswith('.vcf'):
             tmp_vcf = filename + '.tmp'
             _replace_sample_name_in_vcf(filename, tmp_vcf, sample_name)
@@ -196,7 +197,7 @@ def _cleanup_calls_files(sample_name, calls_paths: _CortexCall):
 
 
 def run(reference_fasta: StrPath, reads_files: List[StrPath], output_vcf_file_path: StrPath,
-        sample_name='sample_name', tmp_directory=None, cleanup=True) -> None:
+        sample_name='sample_name', tmp_directory=None, mem_height: int = 22, cleanup=True) -> None:
     reference_fasta = Path(reference_fasta)
     reads_files = [Path(reads_file).resolve() for reads_file in reads_files]
 
@@ -204,16 +205,12 @@ def run(reference_fasta: StrPath, reads_files: List[StrPath], output_vcf_file_pa
         tmp_directory = tempfile.mkdtemp()
     tmp_directory = Path(tmp_directory).resolve()
 
-    caller = _CortexCall(tmp_directory, reference_fasta)
+    caller = _CortexCall(tmp_directory, reference_fasta, mem_height)
     caller.make_input_files(reads_files)
     caller.execute_calls(reference_fasta)
 
     final_vcf_path = _find_final_vcf_file_path(tmp_directory)
-    if final_vcf_path is not None:
-        shutil.copyfile(final_vcf_path, output_vcf_file_path)
-    else:
-        message = f"No vcf found as output. Please check logs in {tmp_directory} for reasons."
-        raise FileNotFoundError(message)
+    shutil.copyfile(final_vcf_path, output_vcf_file_path)
 
     if cleanup:
         shutil.rmtree(tmp_directory)

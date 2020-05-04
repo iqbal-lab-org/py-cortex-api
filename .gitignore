@@ -16,6 +16,8 @@ cortex/ext/cortex*
 
 # Vim
 *~
+*.swp
 
 # Book-keeping
 TODOs.rst
+cur_commit.rst
