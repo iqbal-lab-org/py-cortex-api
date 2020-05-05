@@ -1,4 +1,4 @@
-from unittest import TestCase
+from unittest import TestCase, mock
 from pathlib import Path
 import tempfile
 import shutil
@@ -7,7 +7,7 @@ import random
 from Bio.Seq import Seq
 
 import cortex.settings as settings
-from cortex.calls import run as cortex_run, MissingVcfFile
+from cortex.calls import run as cortex_run
 from cortex.tests.simulate_seqs import (
     SeqRecord,
     SeqRecords,
@@ -30,7 +30,8 @@ class tmpInputFiles:
         return self
 
     def cleanup(self):
-        shutil.rmtree(self._tmp_dir)
+        if self._tmp_dir.exists():
+            shutil.rmtree(self._tmp_dir)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.cleanup()
@@ -91,26 +92,41 @@ class TestCortexRunRef1(TestCase):
     def tearDown(self) -> None:
         self.paths.cleanup()
 
-    def test_reads_below_k31_fails(self):
+    def test_reads_below_k31_makes_empty_vcf(self):
         nonvars = [Variant("Chr1", (20, 20), self.ref[0].seq[20])]
         reads: Reads = simulate_reads(self.ref, nonvars, read_len=15, fold_cov=1)
         reads.write(self.paths.reads_out)
 
-        with self.assertRaises(MissingVcfFile):
+        with mock.patch("cortex.calls._make_empty_vcf") as mock_empty_vcf:
             cortex_run(
                 self.paths.ref_out,
                 [self.paths.reads_out],
                 self.paths.out_vcf,
                 mem_height=2,
                 tmp_directory=self.paths._tmp_dir,
+                sample_name="mysample",
             )
+            mock_empty_vcf.assert_called_once_with(self.paths.out_vcf, "mysample")
 
-    def test_reads_with_no_var_fails(self):
+        # Check the vcf gets actually made
+        self.setUp()
+        reads.write(self.paths.reads_out)
+        cortex_run(
+            self.paths.ref_out,
+            [self.paths.reads_out],
+            self.paths.out_vcf,
+            mem_height=2,
+            tmp_directory=self.paths._tmp_dir,
+            cleanup=False,
+        )
+        self.assertTrue(self.paths.out_vcf.exists())
+
+    def test_reads_with_no_var_makes_empty_vcf(self):
         nonvars = [Variant("Chr1", (50, 50), self.ref[0].seq[50])]
         reads: Reads = simulate_reads(self.ref, nonvars, read_len=40, fold_cov=30)
         reads.write(self.paths.reads_out)
 
-        with self.assertRaises(MissingVcfFile):
+        with mock.patch("cortex.calls._make_empty_vcf") as mock_empty_vcf:
             cortex_run(
                 self.paths.ref_out,
                 [self.paths.reads_out],
@@ -118,8 +134,9 @@ class TestCortexRunRef1(TestCase):
                 mem_height=2,
                 tmp_directory=self.paths._tmp_dir,
             )
+            mock_empty_vcf.assert_called_once()
 
-    def test_reads_with_one_snp_passes(self):
+    def test_reads_with_one_snp_non_empty_vcf(self):
         snp_pos = 50
         ref_base = self.ref[0].seq[snp_pos]
         non_ref_choices = set(dna_choices).difference(set(ref_base))
@@ -137,7 +154,10 @@ class TestCortexRunRef1(TestCase):
             tmp_directory=self.paths.reads_out.parent,
             cleanup=False,
         )
-        self.assertTrue(self.paths.out_vcf.exists())
+        with self.paths.out_vcf.open() as vcf_out:
+            all_lines = vcf_out.readlines()
+            all_lines = [line for line in all_lines if line[0] != "#"]
+        self.assertTrue(len(all_lines) > 0)
 
 
 class TestResources(TestCase):

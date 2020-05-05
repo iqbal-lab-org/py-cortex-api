@@ -1,30 +1,71 @@
+import glob
 import hashlib
+from typing import Optional, Union
+from pathlib import Path
 
 from cortex.utils import syscall
 
+StrPath = str
+PathLike = Union[StrPath, Path]
 
-# TODO: unused
-def _replace_sample_name_in_vcf(input_file_path, output_file_path, sample_name):
-    changed_name = False
 
-    with open(input_file_path) as f_in, open(output_file_path, "w") as f_out:
-        for line in f_in:
-            if not line.startswith("#CHROM"):
-                print(line, end="", file=f_out)
-                continue
+class MissingVcfFile(Exception):
+    pass
 
-            fields = line.rstrip().split("\t")
-            if len(fields) < 10:
-                raise RuntimeError("Not enough columns in VCF header line of VCF", line)
-            elif len(fields) == 10:
-                fields[9] = sample_name
-                print(*fields, sep="\t", file=f_out)
-                changed_name = True
-            else:
-                raise RuntimeError("More than one sample in VCF", line)
 
-    if not changed_name:
-        raise RuntimeError("No #CHROM line found in VCF file", input_file_path)
+class TooManyVcfFiles(Exception):
+    pass
+
+
+def _find_final_vcf_file_path(cortex_directory: Path) -> Optional[PathLike]:
+    vcf_pattern = cortex_directory / "cortex_output" / "vcfs" / "*.vcf"
+    found_vcfs = glob.glob(str(vcf_pattern))
+
+    if not found_vcfs:
+        return None
+
+    final_vcf_pattern = "*_wk_*FINAL*raw.vcf"
+    path_pattern = cortex_directory / "cortex_output" / "vcfs" / final_vcf_pattern
+    found = glob.glob(str(path_pattern))
+    if len(found) == 0:
+        raise MissingVcfFile(
+            f"Vcfs found in output: {found_vcfs}, "
+            f"but none matches {final_vcf_pattern}."
+        )
+    if len(found) > 1:
+        raise TooManyVcfFiles(
+            f"Multiple possible final "
+            f"cortex VCF files matching {final_vcf_pattern} found: {found}"
+        )
+    return found[0]
+
+
+def _make_empty_vcf(output_file_path: PathLike, sample_name: str):
+    print(
+        "Cortex made no vcfs, so making an empty one.\n"
+        "Known possible reasons why no vcf:\n"
+        "\t Read or reference size < kmer size\n"
+        "\t No variants found during bubble calling"
+    )
+    header_lines = [
+        "##fileformat=VCFv4.2",
+        '##FILTER=<ID=PASS,Description="All filters passed">',
+    ]
+    header_tabs = [
+        "#CHROM",
+        "POS",
+        "ID",
+        "REF",
+        "ALT",
+        "QUAL",
+        "FILTER",
+        "INFO",
+        "FORMAT",
+        sample_name,
+    ]
+    with open(str(output_file_path), "w") as f_out:
+        print(*header_lines, sep="\n", file=f_out)
+        print(*header_tabs, sep="\t", file=f_out)
 
 
 # TODO: unused

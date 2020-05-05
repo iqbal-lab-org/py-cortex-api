@@ -1,20 +1,18 @@
 import os
-import glob
 import shutil
 import tempfile
 import sys
 from pathlib import Path
-from typing import List, Union
+from typing import List
 
+from cortex.file_manip import (
+    StrPath,
+    PathLike,
+    _find_final_vcf_file_path,
+    _make_empty_vcf,
+)
 from . import settings
 from . import utils
-
-StrPath = str
-PathLike = Union[StrPath, Path]
-
-
-class MissingVcfFile(Exception):
-    pass
 
 
 class _CortexIndex:
@@ -167,20 +165,6 @@ class _CortexCall:
             raise e from None
 
 
-def _find_final_vcf_file_path(cortex_directory: Path):
-    path_pattern = cortex_directory / "cortex_output/vcfs/*_wk_*FINAL*raw.vcf"
-    found = list(glob.glob(str(path_pattern), recursive=True))
-    if len(found) == 0:
-        message = (
-            f"No vcf found as output. Please check logs in "
-            f"{cortex_directory} for reasons."
-        )
-        raise MissingVcfFile(message)
-    if len(found) > 1:
-        raise ValueError("Multiple possible output cortex VCF files found")
-    return found[0]
-
-
 def run(
     reference_fasta: StrPath,
     reads_files: List[StrPath],
@@ -202,9 +186,15 @@ def run(
     caller.execute_calls(reference_fasta)
 
     final_vcf_path = _find_final_vcf_file_path(tmp_directory)
-    shutil.copyfile(final_vcf_path, output_vcf_file_path)
+    if final_vcf_path is not None:
+        shutil.copyfile(final_vcf_path, output_vcf_file_path)
+    else:
+        _make_empty_vcf(output_vcf_file_path, sample_name)
 
     if cleanup:
         shutil.rmtree(tmp_directory)
     else:
-        print(f"Not cleaning tmp directory. Output and log files in {tmp_directory}")
+        print(
+            f"Not cleaning tmp directory. "
+            f"Cortex output and log files in {tmp_directory}"
+        )
