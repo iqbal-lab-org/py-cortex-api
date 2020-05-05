@@ -31,13 +31,15 @@ sed -i '1s@.*@#!'"${python_path}"'@' stampy.py
 #________________________ vcftools _______________________#
 cd $install_root
 vcftools_version="0.1.15"
-vcftools_dir="vcftools-${vcftools_version}"
-  if [[ ! -e "./${vcftools_dir}" ]];then
-    wget "https://github.com/vcftools/vcftools/releases/download/v${vcftools_version}/vcftools-${vcftools_version}.tar.gz"
-    tar xf "${vcftools_dir}.tar.gz"
-    rm "${vcftools_dir}.tar.gz"
+vcftools_versioned_dir="vcftools-${vcftools_version}"
+vcftools_target_dir="vcftools"
+  if [[ ! -e "./${vcftools_target_dir}" ]];then
+    wget "https://github.com/vcftools/vcftools/releases/download/v${vcftools_version}/${vcftools_versioned_dir}.tar.gz"
+    tar xf "${vcftools_versioned_dir}.tar.gz"
+    rm "${vcftools_versioned_dir}.tar.gz"
+    mv "${vcftools_versioned_dir}" "${vcftools_target_dir}"
   fi
-cd "${vcftools_dir}"
+cd "${vcftools_target_dir}"
 ./configure --prefix $PWD/install
 make
 make install

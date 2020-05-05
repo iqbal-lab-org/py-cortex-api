@@ -57,9 +57,9 @@ setuptools.setup(
     url="https://github.com/iqbal-lab-org/py-cortex-api",
     long_description=readme,
     long_description_content_type="text/markdown",
+    install_requires=["biopython == 1.76"],
     packages=setuptools.find_packages("."),
     include_package_data=True,
-    install_requires=["biopython >= 1.70"],
     test_suite="cortex.tests",
     cmdclass=dict(install=_InstallCommand, develop=_DevelopCommand),
 )

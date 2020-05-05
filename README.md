@@ -17,8 +17,8 @@ sudo apt install r-base-core python2.7
 Use a list to pass in reads files, even if there is only one file.
 
 ```python
-import cortex
-cortex.calls("./reference.fasta",
+import cortex.calls as cortex
+cortex.run("./reference.fasta",
              ["./reads.fastq"],
              "./output.vcf")
 ```
