@@ -14,6 +14,9 @@ sudo apt install r-base-core python2.7
 ```
 
 # Usage
+Provide a reference genome in fasta[.gz], one or more reads file in fasta/q, and a vcf with variants 
+detected by cortex is produced.
+
 Use a list to pass in reads files, even if there is only one file.
 
 ```python
@@ -26,7 +29,7 @@ The third argument is where to place the output vcf.
 
 ## Options
 
-That can be passed to `cortex.calls`:
+That can be passed to `cortex.run`:
 * `sample_name`: sample name to appear in output vcf.
 * `mem_height`: if `cortex.calls` fails warning of too low memory, use higher than the default of 22.
 * `tmp_directory`: where to place intermediate output and log files
