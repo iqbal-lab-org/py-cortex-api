@@ -58,6 +58,9 @@ class Reads:
     def __init__(self):
         self.reads: List[Read] = list()
 
+    def __iter__(self):
+        return iter(self.reads)
+
     def add(self, reads: List[Read]):
         self.reads.extend(reads)
 
@@ -88,7 +91,9 @@ def simulate_reads(
 
         applied_seq = str(ref_record.seq)
         applied_seq = (
-            applied_seq[: variant.pos[0]] + variant.alt + applied_seq[variant.pos[1] :]
+            applied_seq[: variant.pos[0]]
+            + variant.alt
+            + applied_seq[variant.pos[1] + 1 :]
         )
 
         start_pos = max(variant_start_pos - read_len + 1, 0)
@@ -104,7 +109,7 @@ def simulate_reads(
             sampled_reads.append(
                 Read(
                     variant.ref_ID,
-                    applied_seq[read_start_pos : read_start_pos + read_len - 1],
+                    applied_seq[read_start_pos : read_start_pos + read_len],
                     "." * read_len,
                 )
             )

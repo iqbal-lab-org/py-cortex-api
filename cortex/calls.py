@@ -13,9 +13,14 @@ StrPath = str
 PathLike = Union[StrPath, Path]
 
 
+class MissingVcfFile(Exception):
+    pass
+
+
 class _CortexIndex:
     def __init__(self, directory: Path):
         self.base = directory.resolve()
+        self.base.mkdir(exist_ok=True)
 
         self.ref_names_file = self.base / "fofn"
         self.reference_fasta = self.base / "ref.fa"
@@ -50,11 +55,11 @@ class _CortexIndex:
         self.ref_names_file.unlink()
 
         utils.syscall(
-            ["python2", settings.STAMPY_SCRIPT, "-G", self.stampy, reference_fasta,]
+            ["python2", settings.STAMPY_SCRIPT, "-G", self.stampy, reference_fasta]
         )
 
         utils.syscall(
-            ["python2", settings.STAMPY_SCRIPT, "-g", self.stampy, "-H", self.stampy,]
+            ["python2", settings.STAMPY_SCRIPT, "-g", self.stampy, "-H", self.stampy]
         )
 
 
@@ -99,7 +104,8 @@ class _CortexCall:
             settings.CORTEX_ROOT, "scripts", "calling", "run_calls.pl"
         )
 
-        # See https://github.com/iqbal-lab/cortex/tree/master/doc for guidance on command arguments
+        # See https://github.com/iqbal-lab/cortex/tree/master/doc for
+        # guidance on command arguments
         command = [
             cortex_calls_script,
             "--first_kmer",
@@ -149,8 +155,8 @@ class _CortexCall:
         try:
             utils.syscall(command)
         except Exception:
-            # In cortex, stderr and stdout gets written log files so that raised errors in this API do not
-            # necessarily get what Actually caused the error.
+            # In cortex, stderr and stdout gets written log files so that raised errors
+            # in this API do not necessarily get what Actually caused the error.
             print(
                 "----------------------------\n"
                 "Please refer to cortex log file at {} for more information.".format(
@@ -165,8 +171,11 @@ def _find_final_vcf_file_path(cortex_directory: Path):
     path_pattern = cortex_directory / "cortex_output/vcfs/*_wk_*FINAL*raw.vcf"
     found = list(glob.glob(str(path_pattern), recursive=True))
     if len(found) == 0:
-        message = f"No vcf found as output. Please check logs in {cortex_directory} for reasons."
-        raise FileNotFoundError(message)
+        message = (
+            f"No vcf found as output. Please check logs in "
+            f"{cortex_directory} for reasons."
+        )
+        raise MissingVcfFile(message)
     if len(found) > 1:
         raise ValueError("Multiple possible output cortex VCF files found")
     return found[0]
@@ -235,7 +244,7 @@ def run(
     reads_files: List[StrPath],
     output_vcf_file_path: StrPath,
     sample_name="sample_name",
-    tmp_directory=None,
+    tmp_directory: PathLike = None,
     mem_height: int = 22,
     cleanup=True,
 ) -> None:
