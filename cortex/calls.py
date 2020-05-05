@@ -83,7 +83,7 @@ class _CortexCall:
         self.index = _CortexIndex(self.base / "indexes")
         self.index.make(reference_fasta, self.mem_height)
 
-    def make_input_files(self, reads_files: List[Path]):
+    def make_input_files(self, reads_files: List[Path], sample_name: str):
         self.base.mkdir(parents=True, exist_ok=True)
 
         # List sample's read files
@@ -93,7 +93,7 @@ class _CortexCall:
 
         # Sample name + file listing read files
         with self.reads_index.open("w") as f:
-            print("sample", self.reads_fofn, ".", ".", sep="\t", file=f)
+            print(sample_name, self.reads_fofn, ".", ".", sep="\t", file=f)
 
         with self.reference_fofn.open("w") as f:
             print(self.index.reference_fasta, file=f)
@@ -154,7 +154,7 @@ class _CortexCall:
 
         try:
             utils.syscall(command)
-        except Exception:
+        except RuntimeError as e:
             # In cortex, stderr and stdout gets written log files so that raised errors
             # in this API do not necessarily get what Actually caused the error.
             print(
@@ -164,7 +164,7 @@ class _CortexCall:
                 ),
                 file=sys.stderr,
             )
-            exit()
+            raise e from None
 
 
 def _find_final_vcf_file_path(cortex_directory: Path):
@@ -181,69 +181,11 @@ def _find_final_vcf_file_path(cortex_directory: Path):
     return found[0]
 
 
-def _replace_sample_name_in_vcf(input_file_path, output_file_path, sample_name):
-    changed_name = False
-
-    with open(input_file_path) as f_in, open(output_file_path, "w") as f_out:
-        for line in f_in:
-            if not line.startswith("#CHROM"):
-                print(line, end="", file=f_out)
-                continue
-
-            fields = line.rstrip().split("\t")
-            if len(fields) < 10:
-                raise RuntimeError("Not enough columns in VCF header line of VCF", line)
-            elif len(fields) == 10:
-                fields[9] = sample_name
-                print(*fields, sep="\t", file=f_out)
-                changed_name = True
-            else:
-                raise RuntimeError("More than one sample in VCF", line)
-
-    if not changed_name:
-        raise RuntimeError("No #CHROM line found in VCF file", input_file_path)
-
-
-def _cleanup_calls_files(sample_name, calls_paths: _CortexCall):
-    shutil.rmtree(calls_paths.output_directory / "tmp_filelists")
-
-    for filename in glob.glob(
-        str(calls_paths.output_directory / "binaries" / "uncleaned" / "**" / "**")
-    ):
-        if not (filename.endswith("log") or filename.endswith(".covg")):
-            os.unlink(filename)
-
-    for filename in glob.glob(str(calls_paths.output_directory / "calls" / "**")):
-        if os.path.isdir(filename):
-            for filename2 in os.listdir(filename):
-                if not filename2.endswith("log"):
-                    os.unlink(os.path.join(filename, filename2))
-        elif not (filename.endswith("log") or filename.endswith("callsets.genotyped")):
-            os.unlink(filename)
-
-    for filename in glob.glob(str(calls_paths.output_directory / "vcfs" / "**")):
-        if filename.endswith(".vcf"):
-            tmp_vcf = filename + ".tmp"
-            _replace_sample_name_in_vcf(filename, tmp_vcf, sample_name)
-            utils.rsync_and_md5(tmp_vcf, filename)
-            os.unlink(tmp_vcf)
-
-        if not (
-            (filename.endswith(".vcf") and "FINAL" in filename)
-            or filename.endswith("log")
-            or filename.endswith("aligned_branches")
-        ):
-            if os.path.isdir(filename):
-                shutil.rmtree(filename)
-            else:
-                os.unlink(filename)
-
-
 def run(
     reference_fasta: StrPath,
     reads_files: List[StrPath],
     output_vcf_file_path: StrPath,
-    sample_name="sample_name",
+    sample_name="sample",
     tmp_directory: PathLike = None,
     mem_height: int = 22,
     cleanup=True,
@@ -256,7 +198,7 @@ def run(
     tmp_directory = Path(tmp_directory).resolve()
 
     caller = _CortexCall(tmp_directory, reference_fasta, mem_height)
-    caller.make_input_files(reads_files)
+    caller.make_input_files(reads_files, sample_name)
     caller.execute_calls(reference_fasta)
 
     final_vcf_path = _find_final_vcf_file_path(tmp_directory)
@@ -265,4 +207,4 @@ def run(
     if cleanup:
         shutil.rmtree(tmp_directory)
     else:
-        _cleanup_calls_files(sample_name, caller)
+        print(f"Not cleaning tmp directory. Output and log files in {tmp_directory}")

@@ -1,4 +1,4 @@
-import unittest
+from unittest import TestCase
 from pathlib import Path
 import tempfile
 import shutil
@@ -12,12 +12,47 @@ from cortex.tests.simulate_seqs import (
     SeqRecord,
     SeqRecords,
     simulate_reads,
+    simulate_refs,
     Reads,
     Variant,
     dna_choices,
 )
 
-data_dir = Path(__file__).resolve().parent / "data"
+
+class tmpInputFiles:
+    def __init__(self):
+        self._tmp_dir = Path(tempfile.mkdtemp())
+        self.ref_out = self._tmp_dir / "ref.fa"
+        self.reads_out = self._tmp_dir / "reads.fq"
+        self.out_vcf = self._tmp_dir / "out.vcf"
+
+    def __enter__(self):
+        return self
+
+    def cleanup(self):
+        shutil.rmtree(self._tmp_dir)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.cleanup()
+
+
+class TestCortexRunErrors(TestCase):
+    def test_not_enough_memory_fails(self):
+        refs = simulate_refs(["id1"], [10000])
+        reads = simulate_reads(refs, variants=list(), read_len=10)
+
+        with tmpInputFiles() as paths:
+            refs.write(paths.ref_out)
+            reads.write(paths.reads_out)
+
+            with self.assertRaises(RuntimeError):
+                cortex_run(
+                    paths.ref_out,
+                    [paths.reads_out],
+                    paths.out_vcf,
+                    tmp_directory=paths._tmp_dir,
+                    mem_height=1,
+                )
 
 
 def setup_ref1() -> SeqRecords:
@@ -44,59 +79,44 @@ def setup_ref1() -> SeqRecords:
     return SeqRecords([chr1, chr2])
 
 
-def setup_fpaths():
-    tmp_dir = Path(tempfile.mkdtemp())
-    ref_out = tmp_dir / "ref.fa"
-    reads_out = tmp_dir / "reads.fq"
-    out_vcf = tmp_dir / "out.vcf"
-    return ref_out, reads_out, out_vcf
-
-
-class TestResources(unittest.TestCase):
-    def test_FilesExist(self):
-        for var_name in ["CORTEX_ROOT", "STAMPY_SCRIPT", "VCFTOOLS_DIRECTORY"]:
-            self.assertEqual(True, getattr(settings, var_name).exists())
-
-
-class TestCortexRunRef1(unittest.TestCase):
+class TestCortexRunRef1(TestCase):
     @classmethod
     def setUpClass(cls):
         cls.ref = setup_ref1()
 
     def setUp(self) -> None:
-        self.ref_out, self.reads_out, self.vcf_out = setup_fpaths()
-        self.ref.write(self.ref_out)
+        self.paths = tmpInputFiles()
+        self.ref.write(self.paths.ref_out)
 
     def tearDown(self) -> None:
-        shutil.rmtree(str(self.ref_out.parent))
-        pass
+        self.paths.cleanup()
 
     def test_reads_below_k31_fails(self):
         nonvars = [Variant("Chr1", (20, 20), self.ref[0].seq[20])]
         reads: Reads = simulate_reads(self.ref, nonvars, read_len=15, fold_cov=1)
-        reads.write(self.reads_out)
+        reads.write(self.paths.reads_out)
 
         with self.assertRaises(MissingVcfFile):
             cortex_run(
-                self.ref_out,
-                [self.reads_out],
-                self.vcf_out,
+                self.paths.ref_out,
+                [self.paths.reads_out],
+                self.paths.out_vcf,
                 mem_height=2,
-                tmp_directory=self.reads_out.parent,
+                tmp_directory=self.paths._tmp_dir,
             )
 
     def test_reads_with_no_var_fails(self):
         nonvars = [Variant("Chr1", (50, 50), self.ref[0].seq[50])]
         reads: Reads = simulate_reads(self.ref, nonvars, read_len=40, fold_cov=30)
-        reads.write(self.reads_out)
+        reads.write(self.paths.reads_out)
 
         with self.assertRaises(MissingVcfFile):
             cortex_run(
-                self.ref_out,
-                [self.reads_out],
-                self.vcf_out,
+                self.paths.ref_out,
+                [self.paths.reads_out],
+                self.paths.out_vcf,
                 mem_height=2,
-                tmp_directory=self.reads_out.parent,
+                tmp_directory=self.paths._tmp_dir,
             )
 
     def test_reads_with_one_snp_passes(self):
@@ -107,18 +127,20 @@ class TestCortexRunRef1(unittest.TestCase):
         alt_base = random.choice(list(non_ref_choices))
         vars = [Variant("Chr1", (snp_pos, snp_pos), alt_base)]
         reads: Reads = simulate_reads(self.ref, vars, read_len=40, fold_cov=30)
-        reads.write(self.reads_out)
+        reads.write(self.paths.reads_out)
 
         cortex_run(
-            self.ref_out,
-            [self.reads_out],
-            self.vcf_out,
+            self.paths.ref_out,
+            [self.paths.reads_out],
+            self.paths.out_vcf,
             mem_height=2,
-            tmp_directory=self.reads_out.parent,
+            tmp_directory=self.paths.reads_out.parent,
             cleanup=False,
         )
-        self.assertTrue(self.vcf_out.exists())
+        self.assertTrue(self.paths.out_vcf.exists())
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TestResources(TestCase):
+    def test_FilesExist(self):
+        for var_name in ["CORTEX_ROOT", "STAMPY_SCRIPT", "VCFTOOLS_DIRECTORY"]:
+            self.assertEqual(True, getattr(settings, var_name).exists())

@@ -4,6 +4,7 @@ from enum import Enum
 from pathlib import Path
 
 from Bio.SeqRecord import SeqRecord
+from Bio.Seq import Seq
 from Bio import SeqIO
 
 
@@ -73,7 +74,9 @@ class Reads:
 def simulate_refs(seq_ids: List[str], seq_lengths: List[int]) -> SeqRecords:
     records: List[SeqRecord] = list()
     for seq_id, seq_len in zip(seq_ids, seq_lengths):
-        new_rec = SeqRecord("".join(random.choices(dna_choices, k=seq_len)), seq_id)
+        new_rec = SeqRecord(
+            Seq("".join(random.choices(dna_choices, k=seq_len))), seq_id
+        )
         records.append(new_rec)
     return SeqRecords(records)
 
