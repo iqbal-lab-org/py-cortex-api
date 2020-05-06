@@ -6,7 +6,6 @@ import random
 
 from Bio.Seq import Seq
 
-import cortex.settings as settings
 from cortex.calls import run as cortex_run
 from cortex.tests.simulate_seqs import (
     SeqRecord,
@@ -158,9 +157,3 @@ class TestCortexRunRef1(TestCase):
             all_lines = vcf_out.readlines()
             all_lines = [line for line in all_lines if line[0] != "#"]
         self.assertTrue(len(all_lines) > 0)
-
-
-class TestResources(TestCase):
-    def test_FilesExist(self):
-        for var_name in ["CORTEX_ROOT", "STAMPY_SCRIPT", "VCFTOOLS_DIRECTORY"]:
-            self.assertEqual(True, getattr(settings, var_name).exists())

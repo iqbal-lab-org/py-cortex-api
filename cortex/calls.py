@@ -21,7 +21,6 @@ class _CortexIndex:
         self.base.mkdir(exist_ok=True)
 
         self.ref_names_file = self.base / "fofn"
-        self.reference_fasta = self.base / "ref.fa"
         self.dump_binary_ctx = self.base / "k31.ctx"
         self.stampy = self.base / "stampy"
 
@@ -81,7 +80,9 @@ class _CortexCall:
         self.index = _CortexIndex(self.base / "indexes")
         self.index.make(reference_fasta, self.mem_height)
 
-    def make_input_files(self, reads_files: List[Path], sample_name: str):
+    def make_input_files(
+        self, reference_fasta: Path, reads_files: List[Path], sample_name: str
+    ):
         self.base.mkdir(parents=True, exist_ok=True)
 
         # List sample's read files
@@ -94,9 +95,9 @@ class _CortexCall:
             print(sample_name, self.reads_fofn, ".", ".", sep="\t", file=f)
 
         with self.reference_fofn.open("w") as f:
-            print(self.index.reference_fasta, file=f)
+            print(reference_fasta, file=f)
 
-    def execute_calls(self, reference_fasta):
+    def execute_calls(self, reference_fasta: Path):
         number_of_bases_in_reference = utils.get_sequence_length(reference_fasta)
         cortex_calls_script = os.path.join(
             settings.CORTEX_ROOT, "scripts", "calling", "run_calls.pl"
@@ -182,7 +183,7 @@ def run(
     tmp_directory = Path(tmp_directory).resolve()
 
     caller = _CortexCall(tmp_directory, reference_fasta, mem_height)
-    caller.make_input_files(reads_files, sample_name)
+    caller.make_input_files(reference_fasta, reads_files, sample_name)
     caller.execute_calls(reference_fasta)
 
     final_vcf_path = _find_final_vcf_file_path(tmp_directory)

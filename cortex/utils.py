@@ -1,11 +1,17 @@
 import sys
 import subprocess
+import gzip
+from pathlib import Path
 
 from Bio import SeqIO
 
 
-def get_sequence_length(fasta_file_path):
-    record = next(SeqIO.parse(fasta_file_path, "fasta"))
+def get_sequence_length(fasta_file_path: Path) -> int:
+    if fasta_file_path.suffix == ".gz":
+        with gzip.open(fasta_file_path, "rt") as fhandle:
+            record = next(SeqIO.parse(fhandle, "fasta"))
+    else:
+        record = next(SeqIO.parse(fasta_file_path, "fasta"))
     return len(record.seq)
 
 

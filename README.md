@@ -14,10 +14,15 @@ sudo apt install r-base-core python2.7
 ```
 
 # Usage
-Provide a reference genome in fasta[.gz], one or more reads file in fasta/q, and a vcf with variants 
-detected by cortex is produced.
+Inputs:
+    * a reference genome in fasta[.gz] 
+    * one or more reads file in fasta/q[.gz]
+    
+>Use a list to pass in reads files, even if there is only one file.
+    
+Output:
+    A vcf with variants detected by cortex.
 
-Use a list to pass in reads files, even if there is only one file.
 
 ```python
 import cortex.calls as cortex
