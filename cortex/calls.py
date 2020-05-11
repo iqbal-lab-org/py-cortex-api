@@ -65,10 +65,13 @@ class _CortexCall:
     fofn: file of file names
     """
 
-    def __init__(self, directory: Path, reference_fasta: Path, mem_height: int):
+    def __init__(
+        self, directory: Path, reference_fasta: Path, ploidy: int, mem_height: int
+    ):
         self.base: Path = directory.resolve()
         self.base.mkdir(parents=True, exist_ok=True)
 
+        self.ploidy = ploidy
         self.mem_height = mem_height
 
         self.cortex_log = self.base / "cortex.log"
@@ -122,7 +125,7 @@ class _CortexCall:
             "--outvcf",
             "cortex",
             "--ploidy",
-            "2",
+            self.ploidy,
             "--stampy_hash",
             self.index.stampy,
             "--stampy_bin",
@@ -170,10 +173,11 @@ def run(
     reference_fasta: StrPath,
     reads_files: List[StrPath],
     output_vcf_file_path: StrPath,
-    sample_name="sample",
+    sample_name: str = "sample",
+    ploidy: int = 1,
     tmp_directory: PathLike = None,
     mem_height: int = 22,
-    cleanup=True,
+    cleanup: bool = True,
 ) -> None:
     reference_fasta = Path(reference_fasta)
     reads_files = [Path(reads_file).resolve() for reads_file in reads_files]
@@ -182,7 +186,10 @@ def run(
         tmp_directory = tempfile.mkdtemp()
     tmp_directory = Path(tmp_directory).resolve()
 
-    caller = _CortexCall(tmp_directory, reference_fasta, mem_height)
+    if ploidy not in {1, 2}:
+        raise ValueError("ploidy must be in {1, 2}")
+
+    caller = _CortexCall(tmp_directory, reference_fasta, ploidy, mem_height)
     caller.make_input_files(reference_fasta, reads_files, sample_name)
     caller.execute_calls(reference_fasta)
 
