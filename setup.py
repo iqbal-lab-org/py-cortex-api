@@ -3,7 +3,7 @@ import sys
 import subprocess
 import setuptools
 from setuptools.command.develop import develop
-from setuptools.command.install import install
+from setuptools.command.build_py import build_py
 
 from cortex import __version__
 
@@ -34,16 +34,16 @@ def _build_backend(root_dir):
     print("END: Building backend dependencies. Return code:", return_code)
 
 
-class _InstallCommand(install):
-    """pip3 install -vvv ./py-cortex-api"""
+class _BuildCommand(build_py):
+    """pip3 build_py -vvv ./py-cortex-api"""
 
     def run(self):
         _build_backend(_root_dir)
-        install.run(self)
+        build_py.run(self)
 
 
 class _DevelopCommand(develop):
-    """pip3 install -vvv --editable ./py-cortex-api"""
+    """pip3 build_py -vvv --editable ./py-cortex-api"""
 
     def run(self):
         _build_backend(_root_dir)
@@ -61,5 +61,5 @@ setuptools.setup(
     packages=setuptools.find_packages("."),
     include_package_data=True,
     test_suite="cortex.tests",
-    cmdclass=dict(install=_InstallCommand, develop=_DevelopCommand),
+    cmdclass=dict(build_py=_BuildCommand, develop=_DevelopCommand),
 )

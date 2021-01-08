@@ -179,7 +179,10 @@ def run(
     mem_height: int = 22,
     cleanup: bool = True,
 ) -> None:
-    reference_fasta = Path(reference_fasta)
+    reference_fasta = Path(reference_fasta).resolve()
+    if type(reads_files) is not list:
+        raise ValueError("read files must be passed as list, even if single file")
+
     reads_files = [Path(reads_file).resolve() for reads_file in reads_files]
 
     if tmp_directory is None:
