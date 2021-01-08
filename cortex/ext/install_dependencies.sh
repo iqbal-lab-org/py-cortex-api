@@ -6,26 +6,15 @@ install_root=$PWD/cortex/ext
 mkdir -p $install_root
 
 
-#________________________ stampy _________________________#
-python_path=$(which python2.7 || which python2)
-if [[ -z "$python_path" ]]; then
-  echo "ERROR: could not find python2.7 or python2 in \$PATH. Python 2 is needed
-  to install and run cortex (dependency: stampy). Please install python 2 and try again"
-  exit 1
-fi
-
+#________________________ minimap2 _________________________#
 cd $install_root
-stampy_version="1.0.32"
-stampy_dir="stampy-${stampy_version}"
-if [[ ! -e "./${stampy_dir}" ]];then
-  wget "https://www.well.ox.ac.uk/~gerton/software/Stampy/${stampy_dir}r3761.tgz"
-  tar xf "${stampy_dir}r3761.tgz"
-  rm "${stampy_dir}r3761.tgz"
+minimap_version="v2.17"
+minimap_dir="minimap2_dir"
+if [[ ! -e "./${minimap_dir}" ]];then
+  git clone https://github.com/lh3/minimap2 && mv minimap2 "$minimap_dir" 
+  cd "$minimap_dir" && git checkout "$minimap_version" && make
+  cd .. && mv "${minimap_dir}/minimap2" . && rm -rf "$minimap_dir"
 fi
-cd "${stampy_dir}"
-make python=python2
-echo "Modifying shebang in file 'stampy.py' to point to python2."
-sed -i '1s@.*@#!'"${python_path}"'@' stampy.py
 
 
 #________________________ vcftools _______________________#
@@ -50,7 +39,7 @@ ln -sf src/perl/ .
 
 
 #________________________ cortex _________________________#
-cortex_revision="6d8e2f9f1984651c253bdd9d748acf6efa54c165"
+cortex_revision="f6ff4038238ca09e7e8ec4f6e45b260f1e51579b"
 cd $install_root
 cortex_dir="cortex"
 if [[ ! -e ${cortex_dir} ]];then

@@ -29,7 +29,7 @@ Instead, run `python setup.py sdist`, and remove everything in
 ```bash
 cd dist
 tar xf py-cortex-api-<version>
-rm -rf py-cortex-api-<version>{cortex,stampy,vcftools}
+rm -rf py-cortex-api-<version>/cortex/ext/{cortex,minimap2,vcftools}
 tar cfzv py-cortex-api-<version>.tar.gz py-cortex-api-<version>
 ```
  

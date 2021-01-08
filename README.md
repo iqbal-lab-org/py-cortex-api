@@ -8,9 +8,9 @@ pip3 install git+https://github.com/iqbal-lab-org/py-cortex-api
 
 #### Requirements
 
-R and python 2 are required.
+R is required by `cortex` at runtime.
 ```
-sudo apt install r-base-core python2.7
+sudo apt install r-base-core
 ```
 
 # Usage

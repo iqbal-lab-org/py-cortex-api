@@ -11,7 +11,7 @@ venv/
 
 # Dependencies
 cortex/ext/vcftools*
-cortex/ext/stampy*
+cortex/ext/minimap2
 cortex/ext/cortex*
 
 # Vim
