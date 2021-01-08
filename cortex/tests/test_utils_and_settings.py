@@ -9,7 +9,7 @@ from cortex.utils import get_sequence_length
 
 class TestResources(TestCase):
     def test_FilesExist(self):
-        for var_name in ["CORTEX_ROOT", "STAMPY_SCRIPT", "VCFTOOLS_DIRECTORY"]:
+        for var_name in ["CORTEX_ROOT", "MINIMAP2", "VCFTOOLS_DIRECTORY"]:
             self.assertEqual(True, getattr(settings, var_name).exists())
 
 

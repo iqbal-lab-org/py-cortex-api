@@ -22,7 +22,6 @@ class _CortexIndex:
 
         self.ref_names_file = self.base / "fofn"
         self.dump_binary_ctx = self.base / "k31.ctx"
-        self.stampy = self.base / "stampy"
 
     def make(self, reference_fasta: Path, mem_height: int):
         with self.ref_names_file.open("w") as f:
@@ -50,14 +49,6 @@ class _CortexIndex:
         )
 
         self.ref_names_file.unlink()
-
-        utils.syscall(
-            ["python2", settings.STAMPY_SCRIPT, "-G", self.stampy, reference_fasta]
-        )
-
-        utils.syscall(
-            ["python2", settings.STAMPY_SCRIPT, "-g", self.stampy, "-H", self.stampy]
-        )
 
 
 class _CortexCall:
@@ -126,10 +117,8 @@ class _CortexCall:
             "cortex",
             "--ploidy",
             self.ploidy,
-            "--stampy_hash",
-            self.index.stampy,
-            "--stampy_bin",
-            settings.STAMPY_SCRIPT,
+            "--minimap2_bin",
+            settings.MINIMAP2,
             "--list_ref_fasta",
             self.reference_fofn,
             "--refbindir",
