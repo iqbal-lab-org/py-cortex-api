@@ -2,6 +2,13 @@
 Python API for [cortex](https://github.com/iqbal-lab/cortex).
 
 # Install
+
+Latest release:
+```
+pip3 install py-cortex-api
+```
+
+Latest source:
 ```
 pip3 install git+https://github.com/iqbal-lab-org/py-cortex-api
 ```
@@ -15,8 +22,9 @@ sudo apt install r-base-core
 
 # Usage
 Inputs:
-    * a reference genome in fasta[.gz] 
-    * one or more reads file in fasta/q[.gz]
+
+* a reference genome in fasta[.gz] 
+* one or more reads file in fasta/q[.gz]
     
 >Use a list to pass in reads files, even if there is only one file.
     
