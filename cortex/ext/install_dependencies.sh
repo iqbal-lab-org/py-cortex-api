@@ -39,7 +39,7 @@ ln -sf src/perl/ .
 
 
 #________________________ cortex _________________________#
-cortex_revision="f6ff4038238ca09e7e8ec4f6e45b260f1e51579b"
+cortex_revision="c8147152cd4015c45057900e8fb600376d1d7fb3"
 cd $install_root
 cortex_dir="cortex"
 if [[ ! -e ${cortex_dir} ]];then
