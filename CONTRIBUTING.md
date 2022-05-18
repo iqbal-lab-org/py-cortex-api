@@ -2,7 +2,8 @@
 
 virtual environment and pre-commit hooks:
 ```bash
-python 3 -m venv venv && . venv/bin/activate && pip install -U pip
+python3 -m venv venv && . venv/bin/activate && pip install -U pip
+pip install -e .
 pip install pre-commit
 pre-commit install
 ```

@@ -5,6 +5,7 @@ set -eu
 install_root=$PWD/cortex/ext
 mkdir -p $install_root
 
+arch_is_arm=$(dpkg --print-architecture | grep '^arm' | wc -l)
 
 #________________________ minimap2 _________________________#
 cd $install_root
@@ -12,7 +13,13 @@ minimap_version="v2.17"
 minimap_dir="minimap2_dir"
 if [[ ! -e "./${minimap_dir}" ]];then
   git clone https://github.com/lh3/minimap2 && mv minimap2 "$minimap_dir" 
-  cd "$minimap_dir" && git checkout "$minimap_version" && make
+  cd "$minimap_dir" && git checkout "$minimap_version"
+  if [[ $arch_is_arm -gt 0 ]]
+  then
+    make arm_neon=1 aarch64=1
+  else
+    make
+  fi
   cd .. && mv "${minimap_dir}/minimap2" . && rm -rf "$minimap_dir"
 fi
 
